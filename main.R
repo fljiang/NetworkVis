@@ -33,94 +33,50 @@ for (i in 1:nrow(edges)) {
 }
 
 # First order connections function, returns a list of nodes
-find_connections <- function(node, from.nodes, to.nodes) {
-  connections.list <- list()
-  counter <- 1
-  
-  for (i in from.nodes) {
-    if (from.nodes[i] == node) {
-      connections.list[counter] = to.nodes[i]
-      counter <- counter + 1
-    }
+find_connections <- function(node) {
+  foc_list <- list()
+  val <- d[[node]]
+  for (n in val) {
+    foc_list <- c(foc_list, n)
   }
-  
-  for (i in to.nodes) {
-    if (to.nodes[i] == node) {
-      connections.list[counter] = from.nodes[i]
-      counter <- counter + 1
-    }
-  }
-  
-  # Create a unique list of first order connections
-  connections.list <- unique(connections.list)
-  connections.list
+  unique(foc_list)
 }
 
-# Maps first order connections to a list of colors or category
-make_col <- function(co.or.ca, node) {
-  con <- find_connections(node, edges$from, edges$to)
-  new.col <- list()
-  idx <- 1
-  while (idx <= nrow(nodes)) {
-    
-    # Subject node
-    if (idx == node) {
-      if (co.or.ca == "co") {
-        new.col[idx] <- "tomato"
-      }
-      else if (co.or.ca == "ca") {
-        new.col[idx] <- 1
-      }
+# Maps first order connections to a list of colors
+generate_cols <- function(node) {
+  connections_list <- find_connections(node)
+  cols <- list()
+  for (i in nrow(nodes)) {
+    if (node == i) {
+      cols[i] <- "tomato" 
     }
-    
-    # First degree connection
-    else if (idx %in% con) {
-      if (co.or.ca == "co") {
-        new.col[idx] <- "slateblue"
-      }
-      else if (co.or.ca == "ca") {
-        new.col[idx] <- 2
-      }
+    else if (i %in% connections_list) {
+      cols[i] <- "slateblue"
     }
-    
-    # Higher order connection
     else {
-      if (co.or.ca == "co") {
-        new.col[idx] <- "gray50"
-      }
-      else if (co.or.ca == "ca") {
-        new.col[idx] <- 3
-      }
+      cols[i] <- "gray50"
     }
-    idx <- idx + 1
   }
-  new.col
+  cols_list
+}
+
+generate_layouts <- function() {
+  layouts <- list()
+  for (i in 1:nrow(nodes)) {
+    lay <- list(layout_randomly(net_js, dim = 3))
+    layouts <- c(layouts, lay)
+  }
+  layouts
 }
 
 # Returns a vector of animation layouts or colors
-make_all <- function(c.or.l, idx = 1) {
-  all <- list()
-  
-  # Vector of colors
-  if (c.or.l == "c") {
-    while (idx <= nrow(nodes)) {
-      col <- make_col("co", idx)
-      col <- list(col)
-      all <- c(all, col)
-      idx <- idx + 1
-    }
+generate_all_cols <- function() {
+  all_cols <- list()
+  for (i in 1:nrow(nodes)) {
+    cols <- list(generate_cols(i))
+    all_cols <- c(all_cols, cols)
   }
-  
-  # Vector of layouts
-  else if (c.or.l == "l") {
-    while (idx <= nrow(nodes)) {
-      lay <- layout_randomly(net.js, dim = 3)
-      lay <- list(lay)
-      all <- c(all, lay)
-      idx <- idx + 1
-    }
-  }
-  all
+  all_cols
 }
 
 # Base visualization
@@ -135,7 +91,7 @@ V(net)$color <- colors[V(net)$portfolio]
 # Set node size
 degs <- list()
 for (i in 1:29) {
-  val = d[[i]]
+  val <- d[[i]]
   degs <- c(degs, length(val))
 }
 degs <- as.double(degs)
@@ -151,29 +107,29 @@ net_js <- net
 
 # Animation 1: Layouts
 layouts <- graphjs(net_js, 
-                     layout = list(
-                       layout_randomly(net_js, dim = 3),
-                       layout_on_sphere(net_js),
-                       layout_with_fr(net_js, dim = 3)),
-                     main = list("Random", "Sphere", "Fr"),
-                     vertex.label = V(net)$label,
-                     brush = TRUE,
-                     fpl = 3000)
+                   layout = list(
+                     layout_randomly(net_js, dim = 3),
+                     layout_on_sphere(net_js),
+                     layout_with_fr(net_js, dim = 3)),
+                   main = list("Random", "Sphere", "Fr"),
+                   vertex.label = V(net)$label,
+                   brush = TRUE,
+                   fpl = 3000)
 
 # Opens html file in browser
-saveWidget(layouts, file = "Order-Network-Animation1.html")
-browseURL("Order-Network-Animation1.html")
+saveWidget(layouts, file = "Order_Network_Animation1.html")
+browseURL("Order_Network_Animation1.html")
 
 # Animation 2: Shows first order connections for each node
-connections <- graphjs(net.js, 
-                       layout = make_all("l"),
+connections <- graphjs(net_js, 
+                       layout = generate_layouts(),
                        main = V(net)$label,
-                       vertex.color = make_all("c"),
+                       vertex.color = generate_all_cols(),
                        brush = TRUE,
                        fpl = 1000)
 
-saveWidget(connections, file = "Order-Network-Animation2.html")
-browseURL("Order-Network-Animation2.html")
+saveWidget(connections, file = "index.html")
+browseURL("index.html")
 
 # Click animation 1: Non-cumulative expandable
 
@@ -187,14 +143,15 @@ idx <- aggregate(seq(1:nrow(nodes))[i],
 l1 <- norm_coords(layout_with_fr(net, dim = 3))
 
 # Collapse the layout to idx nodes
-l0 <- Reduce(rbind, Map(function(i) l1[idx[i],], V(net)$portfolio))
+l0 <- Reduce(rbind,
+             Map(function(i) l1[idx[i],],
+                 V(net)$portfolio))
 
 # Grouped vertex colors, setting all but idx vertices transparent
 col <- rainbow(length(idx), alpha = 0)[V(net)$portfolio]
 col[idx] <- rainbow(length(idx), alpha = 1)
 
-click1 <- Map(function(i)
-{
+click1 <- Map(function(i) {
   # Expand layout for new nodes
   layout <- l0
   layout[V(net)$portfolio == i, ] <- l1[V(net)$portfolio == i, ]
@@ -210,18 +167,15 @@ click1 <- Map(function(i)
 names(click1) <- paste(idx)
 
 net.js <- net
-click.ani1 <- (graphjs(net.js,
-                       layout = l0,
-                       click = click1,
-                       vertex.color = col,
-                       vertex.label = V(net)$label,
-                       fps = 20))
+click_ani <- (graphjs(net_js,
+                      layout = l0,
+                      click = click1,
+                      vertex.color = col,
+                      vertex.label = V(net)$label,
+                      fps = 20))
 
-saveWidget(click.ani1, file = "Order-Network-Click1.html")
-browseURL("Order-Network-Click1.html")
-
-
-
+saveWidget(click_ani1, file = "Order_Network_Click1.html")
+browseURL("Order_Network_Click1.html")
 
 
 
